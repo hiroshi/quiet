@@ -65,8 +65,11 @@ def _check_calender_and_update(app, service):
   try:
     page_token = None
     while True:
-      calendar_list = service.calendarList().list(pageToken=page_token).execute()
+      calendar_list = service.calendarList().list(pageToken=page_token, showHidden=True).execute()
       for calendar_list_entry in calendar_list['items']:
+        if not 'selected' in calendar_list_entry or calendar_list_entry['selected'] == False:
+          continue
+        #print calendar_list_entry
         calendar_id = calendar_list_entry['id']
         print u"%s (%s)" % (calendar_list_entry['summary'], calendar_id)
         list_response = service.events().list(
