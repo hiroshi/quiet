@@ -5,6 +5,7 @@ import apiclient.discovery
 import oauth2client.client
 import oauth2client.file
 import oauth2client.tools
+import isodate
 
 # CLIENT_SECRETS = os.path.join(os.path.dirname(__file__), 'client_secrets.json')
 # NOTE: *.py files will be archived in site-packages.zip by py2app. So relative to this __file__ don't work.
@@ -56,22 +57,34 @@ def start(app):
   _check_calender_and_update(app, service)
 
 
+DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
+
 def _check_calender_and_update(app, service):
   events = []
+  now = datetime.datetime.now(tz=isodate.tzinfo.Utc())
   try:
     page_token = None
     while True:
       calendar_list = service.calendarList().list(pageToken=page_token).execute()
       for calendar_list_entry in calendar_list['items']:
-        #print u"%s (%s)" % (calendar_list_entry['summary'], calendar_list_entry['id'])
-        #print datetime.datetime.now().isoformat()
+        calendar_id = calendar_list_entry['id']
+        print u"%s (%s)" % (calendar_list_entry['summary'], calendar_id)
         list_response = service.events().list(
-            calendarId = calendar_list_entry['id'],
-            # timeMin="2014-03-30T00:00:00+09:00",
-            # timeMax="2014-04-06T00:00:00+09:00").execute()
-            timeMin = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S+00:00"),
-            timeMax = (datetime.datetime.utcnow() + datetime.timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S+00:00")).execute()
+            calendarId = calendar_id,
+            timeMin = isodate.datetime_isoformat(now),
+            timeMax = isodate.datetime_isoformat(now + datetime.timedelta(days=7))
+        ).execute()
         for event in list_response['items']:
+          if 'recurrence' in event:
+            recurrence_events = service.events().instances(
+              calendarId = calendar_id,
+              eventId = event['id'],
+              timeMin = isodate.datetime_isoformat(now),
+              timeMax = isodate.datetime_isoformat(now + datetime.timedelta(days=7))
+            ).execute()
+            for recurrence_event in recurrence_events['items']:
+              events.append(recurrence_event)
+          else:
             events.append(event)
       page_token = calendar_list.get('nextPageToken')
       if not page_token:
@@ -79,10 +92,28 @@ def _check_calender_and_update(app, service):
   except oauth2client.client.AccessTokenRefreshError:
     print ("The credentials have been revoked or expired, please re-run"
       "the application to re-authorize")
-
+  # get datetime to be sorted
+  for event in events:
+    if 'date' in event['start']:
+      event['_date'] = isodate.parse_date(event['start']['date'])
+      event['_datetime'] = datetime.datetime.combine(event['_date'], datetime.time(0, 0, tzinfo=isodate.tzinfo.Utc()))
+    if 'dateTime' in event['start']:
+      event['_datetime'] = isodate.parse_datetime(event['start']['dateTime'])
+  # Display number of events as "title"
   app.title = len(events)
-  app.menu = [e['summary'] for e in events]
-    
+  # Display events as menu items
+  items = []
+  for event in sorted(events, key=lambda e: e['_datetime']):
+    start = ""
+    if '_date' in event:
+      date = event['_date']
+      start = "%s/%s" % (date.month, date.day)
+    elif '_datetime' in event:
+      dt = event['_datetime']
+      start = "%s/%s %s" % (dt.month, dt.day, dt.strftime("%H:%M"))
+    items.append("%s %s" % (start, event['summary']))
+  app.menu = items
+
   # tick = int(app.title) + 1
   # print tick
   # app.title = str(tick)
