@@ -110,10 +110,10 @@ def _check_calender_and_update(app, service):
     start = ""
     if '_date' in event:
       date = event['_date']
-      start = "%s/%s" % (date.month, date.day)
+      start = "%s/%s %s" % (date.month, date.day, date.strftime("(%a)"))
     elif '_datetime' in event:
       dt = event['_datetime']
-      start = "%s/%s %s" % (dt.month, dt.day, dt.strftime("%H:%M"))
+      start = "%s/%s %s" % (dt.month, dt.day, dt.strftime("(%a) %H:%M"))
     items.append("%s %s" % (start, event['summary']))
   app.menu = items
 
