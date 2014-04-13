@@ -62,6 +62,7 @@ DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
 def _check_calender_and_update(app, service):
   events = []
   now = datetime.datetime.now(tz=isodate.tzinfo.Utc())
+  a_day_later = now + datetime.timedelta(days=1)
   try:
     page_token = None
     while True:
@@ -102,8 +103,8 @@ def _check_calender_and_update(app, service):
       event['_datetime'] = datetime.datetime.combine(event['_date'], datetime.time(0, 0, tzinfo=isodate.tzinfo.Utc()))
     if 'dateTime' in event['start']:
       event['_datetime'] = isodate.parse_datetime(event['start']['dateTime'])
-  # Display number of events as "title"
-  app.title = len(events)
+  # Display number of events in 24h as "title"
+  app.title = len([e for e in events if e['_datetime'] < a_day_later])
   # Display events as menu items
   items = []
   for event in sorted(events, key=lambda e: e['_datetime']):
