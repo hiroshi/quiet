@@ -1,6 +1,6 @@
 import argparse
 import httplib2
-import os, errno, datetime
+import os, errno, datetime, threading
 import apiclient.discovery
 import oauth2client.client
 import oauth2client.file
@@ -54,12 +54,13 @@ def start(app):
   # Construct the service object for the interacting with the Calendar API.
   service = apiclient.discovery.build('calendar', 'v3', http=http)
 
-  _check_calender_and_update(app, service)
+  #_check_calender_and_update(app, service)
+  threading.Timer(0, _check_calender_and_update, args=[app, service, []]).start()
 
 
-DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
+#DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
 
-def _check_calender_and_update(app, service):
+def _check_calender_and_update(app, service, items):
   events = []
   now = datetime.datetime.now(tz=isodate.tzinfo.Utc())
   a_day_later = now + datetime.timedelta(days=1)
@@ -105,6 +106,9 @@ def _check_calender_and_update(app, service):
       event['_datetime'] = isodate.parse_datetime(event['start']['dateTime'])
   # Display number of events in 24h as "title"
   app.title = len([e for e in events if e['_datetime'] < a_day_later])
+  # Clear items added last time
+  for item in items:
+    del app.menu[item]
   # Display events as menu items
   items = []
   for event in sorted(events, key=lambda e: e['_datetime']):
@@ -116,7 +120,13 @@ def _check_calender_and_update(app, service):
       dt = event['_datetime']
       start = "%s/%s %s" % (dt.month, dt.day, dt.strftime("(%a) %H:%M"))
     items.append("%s %s" % (start, event['summary']))
-  app.menu = items
+  # Add items
+  for item in items:
+    app.menu.insert_before('separator_1', item) # FIXME
+  #print app.menu
+
+  # Repeat after 5min
+  threading.Timer(60 * 5, _check_calender_and_update, args=[app, service, items]).start()
 
   # tick = int(app.title) + 1
   # print tick

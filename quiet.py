@@ -10,6 +10,8 @@ rumps.debug_mode(True)  # turn on command line logging information for developme
 if __name__ == "__main__":
 
     app = rumps.App("My Toolbar App", title='0')
+    app.title = "Q"
     #app.menu = [u"日本語"]
     modules.google_calendar.start(app)
+    app.menu.add(None) # separator
     app.run()
