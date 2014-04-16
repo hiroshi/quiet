@@ -113,12 +113,14 @@ def _check_calender_and_update(app, service, items, retry=0):
     if 'dateTime' in event['start']:
       event['_datetime'] = isodate.parse_datetime(event['start']['dateTime'])
   # Display number of events in 24h as "title"
-  app.title = len([e for e in events if e['_datetime'] < a_day_later])
+  in24h = len([e for e in events if e['_datetime'] < a_day_later])
+  app.title = in24h
   # Clear items added last time
   for item in items:
     del app.menu[item]
   # Display events as menu items
   items = []
+  items.append("%d events in 24h (Last sync: %s)" % (in24h, datetime.datetime.now().strftime("%H:%M")))
   for event in sorted(events, key=lambda e: e['_datetime']):
     start = ""
     if '_date' in event:
