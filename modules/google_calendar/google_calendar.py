@@ -1,6 +1,6 @@
 import argparse
 import httplib2
-import os, errno, datetime, threading
+import os, errno, datetime, threading, logging
 import apiclient.discovery
 import oauth2client.client
 import oauth2client.file
@@ -60,7 +60,7 @@ def start(app):
 
 #DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
 
-def _check_calender_and_update(app, service, items):
+def _check_calender_and_update(app, service, items, retry=0):
   events = []
   now = datetime.datetime.now(tz=isodate.tzinfo.Utc())
   a_day_later = now + datetime.timedelta(days=1)
@@ -73,7 +73,7 @@ def _check_calender_and_update(app, service, items):
           continue
         #print calendar_list_entry
         calendar_id = calendar_list_entry['id']
-        print u"%s (%s)" % (calendar_list_entry['summary'], calendar_id)
+        #print u"%s (%s)" % (calendar_list_entry['summary'], calendar_id)
         list_response = service.events().list(
             calendarId = calendar_id,
             timeMin = isodate.datetime_isoformat(now),
@@ -97,6 +97,14 @@ def _check_calender_and_update(app, service, items):
   except oauth2client.client.AccessTokenRefreshError:
     print ("The credentials have been revoked or expired, please re-run"
       "the application to re-authorize")
+  except:
+    logging.exception("Failed to access to Google Calendar.")
+    # Retry
+    sec = min(10 * 1 << retry, 60 * 5)
+    print("Retry after %ds" % sec)
+    threading.Timer(sec, _check_calender_and_update, args=[app, service, items, retry + 1]).start()
+    return
+
   # get datetime to be sorted
   for event in events:
     if 'date' in event['start']:
@@ -126,7 +134,7 @@ def _check_calender_and_update(app, service, items):
   #print app.menu
 
   # Repeat after 5min
-  threading.Timer(60 * 5, _check_calender_and_update, args=[app, service, items]).start()
+  threading.Timer(60 * 5, _check_calender_and_update, args=[app, service, items, 0]).start()
 
   # tick = int(app.title) + 1
   # print tick
