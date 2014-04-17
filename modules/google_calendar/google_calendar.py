@@ -6,6 +6,9 @@ import oauth2client.client
 import oauth2client.file
 import oauth2client.tools
 import isodate
+import rumps
+from AppKit import NSWorkspace
+from Foundation import NSURL
 
 # CLIENT_SECRETS = os.path.join(os.path.dirname(__file__), 'client_secrets.json')
 # NOTE: *.py files will be archived in site-packages.zip by py2app. So relative to this __file__ don't work.
@@ -117,10 +120,14 @@ def _check_calender_and_update(app, service, items, retry=0):
   app.title = in24h
   # Clear items added last time
   for item in items:
-    del app.menu[item]
+    del app.menu[item.title if type(item) == rumps.MenuItem else item]
   # Display events as menu items
   items = []
   items.append("%d events in 24h (Last sync: %s)" % (in24h, datetime.datetime.now().strftime("%H:%M")))
+
+  def open_url(sender):
+    NSWorkspace.sharedWorkspace().openURL_(NSURL.URLWithString_(sender._event['htmlLink']))
+
   for event in sorted(events, key=lambda e: e['_datetime']):
     start = ""
     if '_date' in event:
@@ -129,7 +136,10 @@ def _check_calender_and_update(app, service, items, retry=0):
     elif '_datetime' in event:
       dt = event['_datetime']
       start = "%s/%s %s" % (dt.month, dt.day, dt.strftime("(%a) %H:%M"))
-    items.append("%s %s" % (start, event['summary']))
+    #items.append("%s %s" % (start, event['summary']))
+    menu_item = rumps.MenuItem("%s %s" % (start, event['summary']), callback=open_url)
+    menu_item._event = event
+    items.append(menu_item)
   # Add items
   for item in items:
     app.menu.insert_before('separator_1', item) # FIXME
