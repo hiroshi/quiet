@@ -1,17 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-#import sys
-#sys.path.insert(0, "/Users/hiroshi/Desktop/wc/rumps") # use unicode supported fork
+import webbrowser
+from Foundation import NSBundle
 import rumps
 import modules.google_calendar
+#rumps.debug_mode(True)  # turn on command line logging information for development - default is off
 
-rumps.debug_mode(True)  # turn on command line logging information for development - default is off
+def about(sender):
+    webbrowser.open("https://github.com/hiroshi/quiet")
 
 if __name__ == "__main__":
-
     app = rumps.App("My Toolbar App", title='0')
     app.title = "Q"
-    #app.menu = [u"日本語"]
     modules.google_calendar.start(app)
     app.menu.add(None) # separator
+    version = NSBundle.mainBundle().infoDictionary()['CFBundleShortVersionString']
+    app.menu.add(rumps.MenuItem("quiet %s" % version, callback=about))
     app.run()
