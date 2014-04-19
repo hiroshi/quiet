@@ -1,4 +1,4 @@
 quiet
 =====
 
-If you are a user, see [the wiki](./wiki).
+See [the wiki](https://github.com/hiroshi/quiet/wiki).
