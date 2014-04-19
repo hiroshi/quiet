@@ -65,8 +65,10 @@ def start(app):
 
 def _check_calender_and_update(app, service, items, retry=0):
   events = []
+  def append(e):
+    if not any(x for x in events if x['id'] == e['id']):
+      events.append(e)
   now = datetime.datetime.now(tz=isodate.tzinfo.Utc())
-  a_day_later = now + datetime.timedelta(days=1)
   try:
     page_token = None
     while True:
@@ -91,9 +93,9 @@ def _check_calender_and_update(app, service, items, retry=0):
               timeMax = isodate.datetime_isoformat(now + datetime.timedelta(days=7))
             ).execute()
             for recurrence_event in recurrence_events['items']:
-              events.append(recurrence_event)
+              append(recurrence_event)
           else:
-            events.append(event)
+            append(event)
       page_token = calendar_list.get('nextPageToken')
       if not page_token:
         break
@@ -108,19 +110,27 @@ def _check_calender_and_update(app, service, items, retry=0):
     threading.Timer(sec, _check_calender_and_update, args=[app, service, items, retry + 1]).start()
     return
 
+  # remove somehow duplicated events
+  # for x in events:
+  #   for y in evens:
+
   # get datetime to be sorted
   for event in events:
+    # print(event['id'])
     if 'date' in event['start']:
       event['_date'] = isodate.parse_date(event['start']['date'])
       event['_datetime'] = datetime.datetime.combine(event['_date'], datetime.time(0, 0, tzinfo=isodate.tzinfo.Utc()))
     if 'dateTime' in event['start']:
       event['_datetime'] = isodate.parse_datetime(event['start']['dateTime'])
   # Display number of events in 24h as "title"
+  a_day_later = now + datetime.timedelta(days=1)
   in24h = len([e for e in events if e['_datetime'] < a_day_later])
   app.title = in24h
   # Clear items added last time
   for item in items:
-    del app.menu[item.title if type(item) == rumps.MenuItem else item]
+    key = item.title if type(item) == rumps.MenuItem else item
+    if key in app.menu:
+      del app.menu[key]
   # Display events as menu items
   items = []
   items.append("%d events in 24h (Last sync: %s)" % (in24h, datetime.datetime.now().strftime("%H:%M")))
