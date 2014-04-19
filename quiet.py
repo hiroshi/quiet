@@ -7,7 +7,7 @@ import modules.google_calendar
 #rumps.debug_mode(True)  # turn on command line logging information for development - default is off
 
 def about(sender):
-    webbrowser.open("https://github.com/hiroshi/quiet")
+    webbrowser.open("https://github.com/hiroshi/quiet/wiki")
 
 if __name__ == "__main__":
     app = rumps.App("My Toolbar App", title='0')
