@@ -1,6 +1,6 @@
 import argparse
 import httplib2
-import os, errno, datetime, threading, logging
+import os, errno, datetime, threading, logging, webbrowser
 import apiclient.discovery
 import oauth2client.client
 import oauth2client.file
@@ -100,8 +100,6 @@ def _check_calender_and_update(app, service, items, retry=0):
   items = []
   items.append("%d events in 24h (Last sync: %s)" % (in24h, datetime.datetime.now().strftime("%H:%M")))
 
-  def open_url(sender):
-    NSWorkspace.sharedWorkspace().openURL_(NSURL.URLWithString_(sender._event['htmlLink']))
 
   for event in sorted(events, key=lambda e: e['_datetime']):
     start = ""
@@ -112,7 +110,7 @@ def _check_calender_and_update(app, service, items, retry=0):
       dt = event['_datetime']
       start = "%s/%s %s" % (dt.month, dt.day, dt.strftime("(%a) %H:%M"))
     #items.append("%s %s" % (start, event['summary']))
-    menu_item = rumps.MenuItem("%s %s" % (start, event['summary']), callback=open_url)
+    menu_item = rumps.MenuItem("%s %s" % (start, event['summary']), callback=_open_url)
     menu_item._event = event
     items.append(menu_item)
   # Add items
@@ -157,3 +155,7 @@ def _fetch_events(service, now):
     if not page_token:
       break
   return events
+
+def _open_url(sender):
+  #NSWorkspace.sharedWorkspace().openURL_(NSURL.URLWithString_(sender._event['htmlLink']))
+  webbrowser.open(sender._event['htmlLink'])
