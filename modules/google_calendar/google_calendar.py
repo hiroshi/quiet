@@ -6,6 +6,7 @@ import oauth2client.client
 import oauth2client.file
 import oauth2client.tools
 import isodate
+import tzlocal
 import rumps
 from AppKit import NSWorkspace
 from Foundation import NSURL
@@ -119,7 +120,7 @@ def _check_calender_and_update(app, service, items, retry=0):
     # print(event['id'])
     if 'date' in event['start']:
       event['_date'] = isodate.parse_date(event['start']['date'])
-      event['_datetime'] = datetime.datetime.combine(event['_date'], datetime.time(0, 0, tzinfo=isodate.tzinfo.Utc()))
+      event['_datetime'] = datetime.datetime.combine(event['_date'], datetime.time(0, 0, tzinfo=tzlocal.get_localzone()))
     if 'dateTime' in event['start']:
       event['_datetime'] = isodate.parse_datetime(event['start']['dateTime'])
   # Display number of events in 24h as "title"
