@@ -65,41 +65,9 @@ def start(app):
 #DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
 
 def _check_calender_and_update(app, service, items, retry=0):
-  events = []
-  def append(e):
-    if not any(x for x in events if x['id'] == e['id']):
-      events.append(e)
   now = datetime.datetime.now(tz=isodate.tzinfo.Utc())
   try:
-    page_token = None
-    while True:
-      calendar_list = service.calendarList().list(pageToken=page_token, showHidden=True).execute()
-      for calendar_list_entry in calendar_list['items']:
-        if not 'selected' in calendar_list_entry or calendar_list_entry['selected'] == False:
-          continue
-        #print calendar_list_entry
-        calendar_id = calendar_list_entry['id']
-        #print u"%s (%s)" % (calendar_list_entry['summary'], calendar_id)
-        list_response = service.events().list(
-            calendarId = calendar_id,
-            timeMin = isodate.datetime_isoformat(now),
-            timeMax = isodate.datetime_isoformat(now + datetime.timedelta(days=7))
-        ).execute()
-        for event in list_response['items']:
-          if 'recurrence' in event:
-            recurrence_events = service.events().instances(
-              calendarId = calendar_id,
-              eventId = event['id'],
-              timeMin = isodate.datetime_isoformat(now),
-              timeMax = isodate.datetime_isoformat(now + datetime.timedelta(days=7))
-            ).execute()
-            for recurrence_event in recurrence_events['items']:
-              append(recurrence_event)
-          else:
-            append(event)
-      page_token = calendar_list.get('nextPageToken')
-      if not page_token:
-        break
+    events = _fetch_events(service, now)
   except oauth2client.client.AccessTokenRefreshError:
     print ("The credentials have been revoked or expired, please re-run"
       "the application to re-authorize")
@@ -110,10 +78,6 @@ def _check_calender_and_update(app, service, items, retry=0):
     print("Retry after %ds" % sec)
     threading.Timer(sec, _check_calender_and_update, args=[app, service, items, retry + 1]).start()
     return
-
-  # remove somehow duplicated events
-  # for x in events:
-  #   for y in evens:
 
   # get datetime to be sorted
   for event in events:
@@ -154,12 +118,42 @@ def _check_calender_and_update(app, service, items, retry=0):
   # Add items
   for item in items:
     app.menu.insert_before('separator_1', item) # FIXME
-  #print app.menu
-
   # Repeat after 5min
   threading.Timer(60 * 5, _check_calender_and_update, args=[app, service, items, 0]).start()
 
-  # tick = int(app.title) + 1
-  # print tick
-  # app.title = str(tick)
-  # threading.Timer(1, timer_func).start()
+
+def _fetch_events(service, now):
+  events = []
+  def append(e):
+    if not any(x for x in events if x['id'] == e['id']):
+      events.append(e)
+  page_token = None
+  while True:
+    calendar_list = service.calendarList().list(pageToken=page_token, showHidden=True).execute()
+    for calendar_list_entry in calendar_list['items']:
+      if not 'selected' in calendar_list_entry or calendar_list_entry['selected'] == False:
+        continue
+      #print calendar_list_entry
+      calendar_id = calendar_list_entry['id']
+      #print u"%s (%s)" % (calendar_list_entry['summary'], calendar_id)
+      list_response = service.events().list(
+          calendarId = calendar_id,
+          timeMin = isodate.datetime_isoformat(now),
+          timeMax = isodate.datetime_isoformat(now + datetime.timedelta(days=7))
+      ).execute()
+      for event in list_response['items']:
+        if 'recurrence' in event:
+          recurrence_events = service.events().instances(
+            calendarId = calendar_id,
+            eventId = event['id'],
+            timeMin = isodate.datetime_isoformat(now),
+            timeMax = isodate.datetime_isoformat(now + datetime.timedelta(days=7))
+          ).execute()
+          for recurrence_event in recurrence_events['items']:
+            append(recurrence_event)
+        else:
+          append(event)
+    page_token = calendar_list.get('nextPageToken')
+    if not page_token:
+      break
+  return events
