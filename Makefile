@@ -1,6 +1,6 @@
 RUMPS = ../rumps
 export PYTHONPATH=$(RUMPS)
-export VERSION=0.1.0
+export VERSION=0.2.0
 
 .PHONY: all
 all: dist/quiet-$(VERSION).zip
