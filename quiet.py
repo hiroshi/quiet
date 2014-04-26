@@ -12,25 +12,26 @@ class Quiet(NSObject):
         return self
 
     def run(self):
-        app = rumps.App("Quiet", title='Q')
-        app.menu._menu.setDelegate_(self)
+        self.app = rumps.App("Quiet", title='Q')
+        self.app.menu._menu.setDelegate_(self)
         # modules
         #modules.google_calendar.start(app)
-        self.google_calendar = modules.google_calendar.new()
-        self.google_calendar.start()
+        self.google_calendar = modules.google_calendar.Module()
+        self.google_calendar.start(self.app)
         # Quiet menu items
-        app.menu.add(None) # separator
+        self.app.menu.add(None) # separator
         version = NSBundle.mainBundle().infoDictionary()['CFBundleShortVersionString']
         def _about(sender):
             webbrowser.open("https://github.com/hiroshi/quiet/wiki")
-        app.menu.add(rumps.MenuItem("quiet %s" % version, callback=_about))
-        app.run()
+        self.app.menu.add(rumps.MenuItem("quiet %s" % version, callback=_about))
+        self.app.run()
 
     # NSMenuDelegate
-    # def menuWillOpen_(self, menu):
-    #     print menu
-    def menuDidClose_(self, menu):
-        print menu
+    def menuWillOpen_(self, menu):
+        self.google_calendar.refresh(self.app)
+
+    # def menuDidClose_(self, menu):
+    #     self.google_calendar.refresh(self.app)
 
 
 

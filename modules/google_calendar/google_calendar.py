@@ -28,43 +28,52 @@ FLOW = oauth2client.client.flow_from_clientsecrets(
   ],
   message = oauth2client.tools.message_if_missing(CLIENT_SECRETS))
 
-def start(app):
-  http = httplib2.Http(ca_certs=CACERTS)
-  # If the credentials don't exist or are invalid run through the native client
-  # flow. The Storage object will ensure that if successful the good
-  # credentials will get written back to the file.
-  storage_path = os.path.expanduser("~/.quiet/modules/google_calendar/oauth2.credentials")
-  storage_dir = os.path.dirname(storage_path)
+class Module(object):
+  frequency = 60 * 5
+  # frequency = 10
+  items = []
+  refresh_datetime = datetime.datetime.now(tz=isodate.tzinfo.Utc())
+
+  def start(self, app):
+    http = httplib2.Http(ca_certs=CACERTS)
+    # If the credentials don't exist or are invalid run through the native client
+    # flow. The Storage object will ensure that if successful the good
+    # credentials will get written back to the file.
+    storage_path = os.path.expanduser("~/.quiet/modules/google_calendar/oauth2.credentials")
+    _mkdir_p(os.path.dirname(storage_path))
+    storage = oauth2client.file.Storage(storage_path)
+    credentials = storage.get()
+    if credentials is None or credentials.invalid:
+        # FIXME: Use argparse with no actual aguments
+        parser = argparse.ArgumentParser(
+            description=__doc__,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            parents=[oauth2client.tools.argparser])
+        flags = parser.parse_args([])
+        credentials = oauth2client.tools.run_flow(FLOW, storage, flags, http=http)
+    http = credentials.authorize(http)
+
+    # Construct the service object for the interacting with the Calendar API.
+    service = apiclient.discovery.build('calendar', 'v3', http=http)
+
+    #_check_calender_and_update(app, service)
+    threading.Timer(0, _check_calender_and_update, args=[self, app, service]).start()
+
+  def refresh(self, app):
+    app.title = 0
+    self.refresh_datetime = datetime.datetime.now(tz=isodate.tzinfo.Utc())
+    
+
+def _mkdir_p(path):
   try:
-    os.makedirs(storage_dir)
+    os.makedirs(path)
   except OSError as e:
-    if e.errno == errno.EEXIST and os.path.isdir(storage_dir):
+    if e.errno == errno.EEXIST and os.path.isdir(path):
       pass
     else:
       raise
-  storage = oauth2client.file.Storage(storage_path)
-  credentials = storage.get()
-  if credentials is None or credentials.invalid:
-      # FIXME: Use argparse with no actual aguments
-      parser = argparse.ArgumentParser(
-          description=__doc__,
-          formatter_class=argparse.RawDescriptionHelpFormatter,
-          parents=[oauth2client.tools.argparser])
-      flags = parser.parse_args([])
-      credentials = oauth2client.tools.run_flow(FLOW, storage, flags, http=http)
 
-  http = credentials.authorize(http)
-
-  # Construct the service object for the interacting with the Calendar API.
-  service = apiclient.discovery.build('calendar', 'v3', http=http)
-
-  #_check_calender_and_update(app, service)
-  threading.Timer(0, _check_calender_and_update, args=[app, service, []]).start()
-
-
-#DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
-
-def _check_calender_and_update(app, service, items, retry=0):
+def _check_calender_and_update(self, app, service, retry=0):
   now = datetime.datetime.now(tz=isodate.tzinfo.Utc())
   try:
     events = _fetch_events(service, now)
@@ -74,9 +83,9 @@ def _check_calender_and_update(app, service, items, retry=0):
   except:
     logging.exception("Failed to access to Google Calendar.")
     # Retry
-    sec = min(10 * 1 << retry, 60 * 5)
+    sec = min(10 * 1 << retry, self.frequency)
     print("Retry after %ds" % sec)
-    threading.Timer(sec, _check_calender_and_update, args=[app, service, items, retry + 1]).start()
+    threading.Timer(sec, _check_calender_and_update, args=[self, app, service, retry + 1]).start()
     return
 
   # get datetime to be sorted
@@ -90,16 +99,16 @@ def _check_calender_and_update(app, service, items, retry=0):
   # Display number of events in 24h as "title"
   a_day_later = now + datetime.timedelta(days=1)
   in24h = len([e for e in events if e['_datetime'] < a_day_later])
-  app.title = in24h
+  # app.title = in24h
   # Clear items added last time
-  for item in items:
+  for item in self.items:
     key = item.title if type(item) == rumps.MenuItem else item
     if key in app.menu:
       del app.menu[key]
   # Display events as menu items
+  #last_items = items
   items = []
   items.append("%d events in 24h (Last sync: %s)" % (in24h, datetime.datetime.now().strftime("%H:%M")))
-
 
   for event in sorted(events, key=lambda e: e['_datetime']):
     start = ""
@@ -110,14 +119,23 @@ def _check_calender_and_update(app, service, items, retry=0):
       dt = event['_datetime']
       start = "%s/%s %s" % (dt.month, dt.day, dt.strftime("(%a) %H:%M"))
     #items.append("%s %s" % (start, event['summary']))
-    menu_item = rumps.MenuItem("%s %s" % (start, event['summary']), callback=_open_url)
-    menu_item._event = event
-    items.append(menu_item)
-  # Add items
+    item = rumps.MenuItem("%s %s" % (start, event['summary']), callback=_open_url)
+    item._event = event
+    # keep when the item fetched
+    old_item = next((x for x in self.items if x.title == item.title), None)
+    # print bool(old_item)
+    # print getattr(old_item, '_fetch_datetime', None)
+    item._fetch_datetime = old_item._fetch_datetime if old_item != None else now
+    items.append(item)
+  # Add items to the menu
   for item in items:
     app.menu.insert_before('separator_1', item) # FIXME
+  # Update title as count of new items
+  app.title = len([x for x in items if type(x) == rumps.MenuItem and x._fetch_datetime > self.refresh_datetime and x._event['_datetime'] < a_day_later])
+
+  self.items = items
   # Repeat after 5min
-  threading.Timer(60 * 5, _check_calender_and_update, args=[app, service, items, 0]).start()
+  threading.Timer(self.frequency, _check_calender_and_update, args=[self, app, service]).start()
 
 
 def _fetch_events(service, now):
